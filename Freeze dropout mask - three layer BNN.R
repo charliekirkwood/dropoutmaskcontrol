@@ -43,13 +43,13 @@ y <- samp$y
 
 input <- layer_input(shape = c(1))
 
-width = 128
-droprate <- 1/5
+width = 256
+droprate <- 1/8
 act <- "relu"
 
 kernel_ini <- initializer_he_uniform()
-# bias_ini <- initializer_random_uniform(minval = -2.5, maxval = +2.5)
-bias_ini <- initializer_random_normal(stddev = 1)
+bias_ini <- initializer_random_uniform(minval = -3, maxval = +2)
+#bias_ini <- initializer_random_normal(stddev = 1)
 
 
 output <- input %>%
@@ -82,20 +82,20 @@ for(i in 1:n.sims){
   weights <- bnnmodel %>% get_weights()
   
   dropweights <- weights
-  # str(dropweights)
+  #str(dropweights)
   
-  maskl1 <- rbinom(dim(dropweights[[3]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 1
-  maskl2 <- rbinom(dim(dropweights[[5]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 2
-  maskl3 <- rbinom(dim(dropweights[[7]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 3
+  maskl1 <- rbinom(dim(dropweights[[1]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 1
+  maskl2 <- rbinom(dim(dropweights[[3]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 2
+  maskl3 <- rbinom(dim(dropweights[[5]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 3
   
-  dropweights[[2]] <- (dropweights[[2]] * maskl1) # no scaling on bias
-  dropweights[[3]] <- (dropweights[[3]] * maskl1)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[1]] <- t(t(dropweights[[1]]) * maskl1)*(1/(1-droprate))
+  dropweights[[2]] <- (dropweights[[2]] * maskl1)*(1/(1-droprate))
   
-  dropweights[[4]] <- (dropweights[[4]] * maskl2)
-  dropweights[[5]] <- (dropweights[[5]] * maskl2)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[3]] <- t(t(dropweights[[3]]) * maskl2)*(1/(1-droprate))
+  dropweights[[4]] <- (dropweights[[4]] * maskl2)*(1/(1-droprate))
   
-  dropweights[[6]] <- (dropweights[[6]] * maskl3) # no scaling on bias
-  dropweights[[7]] <- (dropweights[[7]] * maskl3)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[5]] <- t(t(dropweights[[5]]) * maskl3)*(1/(1-droprate))
+  dropweights[[6]] <- (dropweights[[6]] * maskl3)*(1/(1-droprate))
   
   bnnmodel %>% set_weights(dropweights)
   
@@ -151,7 +151,7 @@ weights <- bnnmodel %>% get_weights()
 str(weights)
 
 # Predict from the BNN
-n.sims <- 100
+n.sims <- 250
 
 i <- 1
 for(i in 1:n.sims){
@@ -159,20 +159,20 @@ for(i in 1:n.sims){
   weights <- bnnmodel %>% get_weights()
   
   dropweights <- weights
-  # str(dropweights)
+  #str(dropweights)
   
-  maskl1 <- rbinom(dim(dropweights[[3]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 1
-  maskl2 <- rbinom(dim(dropweights[[5]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 2
-  maskl3 <- rbinom(dim(dropweights[[7]])[1], 1, 1-droprate) # generate dropout mask for bias and kernel of layer 3
+  maskl1 <- rbinom(dim(dropweights[[1]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 1
+  maskl2 <- rbinom(dim(dropweights[[3]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 2
+  maskl3 <- rbinom(dim(dropweights[[5]])[2], 1, 1-droprate) # generate dropout mask for kernel and bias of layer 3
   
-  dropweights[[2]] <- (dropweights[[2]] * maskl1) # no scaling on bias
-  dropweights[[3]] <- (dropweights[[3]] * maskl1)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[1]] <- t(t(dropweights[[1]]) * maskl1)*(1/(1-droprate))
+  dropweights[[2]] <- (dropweights[[2]] * maskl1)*(1/(1-droprate))
   
-  dropweights[[4]] <- (dropweights[[4]] * maskl2) # no scaling on bias
-  dropweights[[5]] <- (dropweights[[5]] * maskl2)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[3]] <- t(t(dropweights[[3]]) * maskl2)*(1/(1-droprate))
+  dropweights[[4]] <- (dropweights[[4]] * maskl2)*(1/(1-droprate))
   
-  dropweights[[6]] <- (dropweights[[6]] * maskl3) # no scaling on bias
-  dropweights[[7]] <- (dropweights[[7]] * maskl3)*(1/(1-droprate)) # scaling on kernel
+  dropweights[[5]] <- t(t(dropweights[[5]]) * maskl3)*(1/(1-droprate))
+  dropweights[[6]] <- (dropweights[[6]] * maskl3)*(1/(1-droprate))
   
   bnnmodel %>% set_weights(dropweights)
   
@@ -193,10 +193,14 @@ paste("BNN took", round(Sys.time() - time, 0), "seconds")
 coverage.bnn <- copy(merge(sim, bnnints)[, list(cov = sum(y > lower & y < upper)/.N), by = x])
 mean(coverage.bnn$cov)
 
+sim[, y_mean := mean(y), by = "x"]
+
 # Plot the resulting prediction intervals
 ggplot() + geom_point(data = samp, aes(x = x, y = y), shape = 16, alpha = 0.33) + 
   geom_line(data = surf, aes(x = x, y = truth), col = "red") +
   geom_line(data = sim, aes(x = x, y = y, group = draw, col = draw), alpha = 0.25) +
+  # geom_line(data = sim, aes(x = x, y = y_mean)) +
+  # geom_line(data = mean, aes(x = x, y = y)) +
   theme_bw() +
   ggtitle("Dropout NN - posterior mean function draws")
 ggsave("Dropout NN - posterior mean function draws.png", units = "mm", width = 160, height = 100, type = "cairo", scale = 1.5)
